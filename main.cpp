@@ -1,18 +1,10 @@
-#include "src/headers/BoxWrapping.hpp"
+#include "src/BoxWrapping.cpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 
-void print_boxes(vector<pair<int, int>> boxes)
-{
-    for (auto element : boxes)
-    {
-        cout << "(L,W): (" << element.first << "," << element.second << ")" << endl;
-    }
-}
-
-vector<pair<int, int>> read_file(string filename)
+pair<vector<BoxType>, int> read_file(string filename)
 {
     ifstream inFile;
     inFile.open(filename);
@@ -24,27 +16,33 @@ vector<pair<int, int>> read_file(string filename)
     int width, total_boxes;
     inFile >> width >> total_boxes;
 
-    vector<pair<int, int>> boxes;
+    vector<BoxType> boxes;
     int box_number, l, w;
 
     while (inFile >> box_number >> l >> w)
     {
-        for (int i = 0; i < box_number; i++)
-        {
-            boxes.push_back(make_pair(l, w));
-        }
+        boxes.push_back(BoxType(box_number, l, w));
     }
-    return boxes;
+    return make_pair(boxes, width);
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    try
     {
+        if (argc != 2)
+        {
+            return 1;
+        }
+        string filename = argv[1];
+        pair<vector<BoxType>, int> boxes = read_file(filename);
+        BoxWrapping *bw = new BoxWrapping(boxes.first, boxes.second);
+        bw->print();
+    }
+    catch (Exception e)
+    {
+        cerr << "Gecode exception: " << e.what() << endl;
         return 1;
     }
-    string filename = argv[1];
-    vector<pair<int, int>> boxes = read_file(filename);
-    print_boxes(boxes);
     return 0;
 }
