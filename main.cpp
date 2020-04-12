@@ -37,7 +37,15 @@ int main(int argc, char *argv[])
         string filename = argv[1];
         pair<vector<BoxType>, int> boxes = read_file(filename);
         BoxWrapping *bw = new BoxWrapping(boxes.first, boxes.second);
-        bw->print();
+        // bw->print();
+        DFS<BoxWrapping> e(bw);
+        delete bw;
+        bw = e.next();
+        while (bw)
+        {
+            bw->print();
+        }
+        delete bw;
     }
     catch (Exception e)
     {
