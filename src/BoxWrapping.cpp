@@ -15,9 +15,12 @@ class BoxWrapping : public Space
 {
 
 private:
-    BoolVarArray paper;
+    BoolVarArray x_relative, y_relative;
+    IntVarArray coordinates;
     vector<BoxType> boxes;
-    int paper_width, num_boxes;
+    int paper_width, num_boxes, max_length;
+
+    /*********** NO GECODE ***********/
 
     void print_input()
     {
@@ -29,7 +32,7 @@ private:
 
     void print_output()
     {
-        cout << paper << endl;
+        cout << coordinates << endl;
     }
 
     int compute_num_boxes()
@@ -62,39 +65,91 @@ private:
         return result;
     }
 
-    /**
-     * The number of positions occupied in the paper have to be exactly
-     * the same as the sum of the sizes of the boxes.
-     */
-    void enforce_first_contraint()
-    {
-        rel(*this, sum(paper) == get_total_area_boxes());
-    }
-
-    /**
-     * It is not possible that two different boxes share a common position in
-     * the paper.
-     */
-    void enforce_second_contraint()
-    {
-    }
-
-    void enforce_constraints()
-    {
-        enforce_first_contraint();
-        enforce_second_contraint();
-    }
-
     void init_cpp(vector<BoxType> &b, int &w)
     {
         boxes = b;
         paper_width = w;
         num_boxes = compute_num_boxes();
+        max_length = get_max_length();
+    }
+
+    /*********** GECODE ***********/
+
+    IntVar get_coordinate(int i, int j)
+    {
+        return coordinates[i * num_boxes + j];
+    }
+
+    IntVar get_x_coordinate(int j)
+    {
+        return get_coordinate(0, j);
+    }
+
+    IntVar get_y_coordinate(int j)
+    {
+        return get_coordinate(1, j);
+    }
+
+    BoolVar get_relative_coordinate(BoolVarArray &relative, int i, int j)
+    {
+        int cummulative = 0;
+        for (int k = 0; k < i + 1; k++)
+        {
+            cummulative += 1;
+        }
+        return relative[i * num_boxes + j - cummulative];
+    }
+
+    BoolVar get_x_relative(int i, int j)
+    {
+        return get_relative_coordinate(x_relative, i, j);
+    }
+
+    BoolVar get_y_relative(int i, int j)
+    {
+        return get_relative_coordinate(y_relative, i, j);
+    }
+
+    void enforce_constraints()
+    {
+        for (int i = 0; i < num_boxes; i++)
+        {
+            IntVar x_1 = get_x_coordinate(i);
+            IntVar y_1 = get_y_coordinate(i);
+
+            rel(*this, x_1 + boxes[i].get_width() <= paper_width);
+            rel(*this, y_1 + boxes[i].get_length() <= max_length);
+
+            for (int j = i + 1; j < num_boxes; j++)
+            {
+                IntVar x_2 = get_x_coordinate(j);
+                IntVar y_2 = get_y_coordinate(j);
+                BoolVar x_rel = get_x_relative(i, j);
+                BoolVar y_rel = get_y_relative(i, j);
+
+                rel(*this, x_1 + boxes[i].get_width() <= x_2 + paper_width * (x_rel + y_rel));
+                rel(*this, x_1 - boxes[j].get_width() >= x_2 - paper_width * (1 - x_rel + y_rel));
+                rel(*this, y_1 + boxes[i].get_length() <= y_2 - max_length * (1 + x_rel - y_rel));
+                rel(*this, y_1 - boxes[j].get_length() >= y_2 - max_length * (2 - x_rel - y_rel));
+            }
+        }
+    }
+
+    int get_relative_length()
+    {
+        int result = 0;
+        for (int i = 1; i < num_boxes; i++)
+        {
+            result += i;
+        }
+        return result;
     }
 
     void init_gecode()
     {
-        paper = BoolVarArray(*this, paper_width * get_max_length(), 0, 1);
+        coordinates = IntVarArray(*this, num_boxes, 0, paper_width);
+        x_relative = BoolVarArray(*this, get_relative_length(), 0, 1);
+        y_relative = BoolVarArray(*this, get_relative_length(), 0, 1);
     }
 
     void init(vector<BoxType> b, int w)
@@ -111,8 +166,7 @@ public:
     {
         init(b, w);
         enforce_constraints();
-
-        branch(*this, paper, BOOL_VAR_NONE(), BOOL_VAL_MIN());
+        branch(*this, coordinates, INT_VAR_NONE(), INT_VAL_MIN());
     }
 
     /**
@@ -123,7 +177,17 @@ public:
         boxes = s.boxes;
         paper_width = s.paper_width;
         num_boxes = s.num_boxes;
-        paper.update(*this, s.paper);
+        max_length = s.max_length;
+
+        coordinates.update(*this, s.coordinates);
+        x_relative.update(*this, s.x_relative);
+        y_relative.update(*this, s.y_relative);
+    }
+
+    virtual void constrain(const Space &b)
+    {
+        const BoxWrapping &bw = static_cast<const BoxWrapping &>(b);
+        // rel(*this, get_paper_length() < bw.get_paper_length());
     }
 
     /**
