@@ -15,7 +15,7 @@ class BoxWrapping : public Space
 {
 
 private:
-    BoolVarArray x_relative, y_relative;
+    BoolVarArray x_relative, y_relative, rotation;
     IntVarArray coordinates;
     vector<BoxType> boxes;
     int paper_width, num_boxes, max_length;
@@ -32,7 +32,8 @@ private:
 
     void print_output()
     {
-        cout << coordinates << endl;
+        cout << get_paper_length(coordinates).val() << endl;
+        for(int i = 0)
     }
 
     int compute_num_boxes()
@@ -50,7 +51,7 @@ private:
         int result = 0;
         for (auto &&box : boxes)
         {
-            result += max(box.get_length(), box.get_width());
+            result += box.get_num_boxes() * (box.get_length(), box.get_width());
         }
         return result;
     }
@@ -73,11 +74,18 @@ private:
         max_length = get_max_length();
     }
 
+    void print_stats()
+    {
+        cout << "Paper width: " << paper_width << endl;
+        cout << "Num boxes: " << num_boxes << endl;
+        cout << "Max length: " << max_length << endl;
+    }
+
     /*********** GECODE ***********/
 
     IntVar get_coordinate(int i, int j)
     {
-        return coordinates[i * num_boxes + j];
+        return coordinates[2 * i + j];
     }
 
     IntVar get_x_coordinate(int j)
@@ -93,9 +101,9 @@ private:
     BoolVar get_relative_coordinate(BoolVarArray &relative, int i, int j)
     {
         int cummulative = 0;
-        for (int k = 0; k < i + 1; k++)
+        for (int k = 1; k <= i + 1; k++)
         {
-            cummulative += 1;
+            cummulative += k;
         }
         return relative[i * num_boxes + j - cummulative];
     }
@@ -112,15 +120,12 @@ private:
 
     void enforce_constraints()
     {
-        for (int i = 0; i < num_boxes; i++)
+        for (int i = 0; i < boxes.size(); i++)
         {
             IntVar x_1 = get_x_coordinate(i);
             IntVar y_1 = get_y_coordinate(i);
 
-            rel(*this, x_1 + boxes[i].get_width() <= paper_width);
-            rel(*this, y_1 + boxes[i].get_length() <= max_length);
-
-            for (int j = i + 1; j < num_boxes; j++)
+            for (int j = i + 1; j < boxes.size(); j++)
             {
                 IntVar x_2 = get_x_coordinate(j);
                 IntVar y_2 = get_y_coordinate(j);
@@ -128,9 +133,9 @@ private:
                 BoolVar y_rel = get_y_relative(i, j);
 
                 rel(*this, x_1 + boxes[i].get_width() <= x_2 + paper_width * (x_rel + y_rel));
-                rel(*this, x_1 - boxes[j].get_width() >= x_2 - paper_width * (1 - x_rel + y_rel));
+                // rel(*this, x_1 - boxes[j].get_width() >= x_2 - paper_width * (1 - x_rel + y_rel));
                 rel(*this, y_1 + boxes[i].get_length() <= y_2 - max_length * (1 + x_rel - y_rel));
-                rel(*this, y_1 - boxes[j].get_length() >= y_2 - max_length * (2 - x_rel - y_rel));
+                // rel(*this, y_1 - boxes[j].get_length() >= y_2 - max_length * (2 - x_rel - y_rel));
             }
         }
     }
@@ -147,9 +152,12 @@ private:
 
     void init_gecode()
     {
-        coordinates = IntVarArray(*this, num_boxes, 0, paper_width);
-        x_relative = BoolVarArray(*this, get_relative_length(), 0, 1);
-        y_relative = BoolVarArray(*this, get_relative_length(), 0, 1);
+        int r_l = get_relative_length();
+
+        coordinates = IntVarArray(*this, 2 * num_boxes, 0, max_length);
+        x_relative = BoolVarArray(*this, r_l, 0, 1);
+        y_relative = BoolVarArray(*this, r_l, 0, 1);
+        rotation = BoolVarArray(*this, num_boxes, 0, 1);
     }
 
     void init(vector<BoxType> b, int w)
@@ -184,10 +192,24 @@ public:
         y_relative.update(*this, s.y_relative);
     }
 
+    IntVar get_paper_length(IntVarArray coords)
+    {
+        IntVar greatest = coords[0];
+        for (int i = 0; i < coords.size(); i++)
+        {
+            IntVar tmp = coords[2 * i + 1];
+            if (tmp.assigned() && tmp.val() > greatest.val())
+            {
+                greatest = tmp;
+            }
+        }
+        return greatest;
+    }
+
     virtual void constrain(const Space &b)
     {
         const BoxWrapping &bw = static_cast<const BoxWrapping &>(b);
-        // rel(*this, get_paper_length() < bw.get_paper_length());
+        // rel(*this, get_paper_length(coordinates) < get_paper_length(bw.coordinates));
     }
 
     /**
@@ -202,6 +224,7 @@ public:
     {
         cout << num_boxes << " " << paper_width << endl;
         print_input();
+        print_stats();
         print_output();
     }
 };

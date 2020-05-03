@@ -21,7 +21,10 @@ pair<vector<BoxType>, int> read_file(string filename)
 
     while (inFile >> box_number >> l >> w)
     {
-        boxes.push_back(BoxType(box_number, l, w));
+        for (int i = 0; i < box_number; i++)
+        {
+            boxes.push_back(BoxType(l, w));
+        }
     }
     return make_pair(boxes, width);
 }
@@ -37,9 +40,9 @@ int main(int argc, char *argv[])
         string filename = argv[1];
         pair<vector<BoxType>, int> boxes = read_file(filename);
         BoxWrapping *bw = new BoxWrapping(boxes.first, boxes.second);
-        // bw->print();
+        bw->print();
         DFS<BoxWrapping> e(bw);
-        delete bw;
+        // delete bw;
         bw = e.next();
         while (bw)
         {
