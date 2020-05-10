@@ -18,32 +18,69 @@ private:
     BoolVarArray x_relative, y_relative, rotation;
     IntVarArray coordinates;
     vector<BoxType> boxes;
-    int paper_width, num_boxes, max_length;
+    vector<int> box_types;
+    int paper_width, max_length;
 
     /*********** NO GECODE ***********/
 
+    bool are_equal(BoxType a, BoxType b)
+    {
+        return (a.get_length() == b.get_length() &&
+                a.get_width() == b.get_width());
+    }
+
     void print_input()
     {
-        for (auto box : boxes)
-        {
-            box.print();
-        }
+        cout << paper_width << " " << boxes.size() << endl;
+        print_boxes();
     }
 
     void print_output()
     {
-        cout << get_paper_length(coordinates).val() << endl;
-        for(int i = 0)
+        cout << get_paper_length(coordinates) << endl;
+        for (int i = 0; i < boxes.size(); i++)
+        {
+            cout << get_x_coordinate(i) << " " << get_y_coordinate(i) << endl;
+        }
     }
 
-    int compute_num_boxes()
+    void print_boxes()
     {
+        BoxType current;
+        int index = 0;
+        for (BoxType box : boxes)
+        {
+            if (!are_equal(current, box))
+            {
+                current = box;
+                cout << box_types[index] << "  ";
+                current.print();
+                cout << endl;
+                index++;
+            }
+            continue;
+        }
+    }
+
+    vector<int> compute_box_types()
+    {
+        vector<int> types;
         int n_boxes = 0;
+        BoxType b;
+        int n = 0;
         for (auto box : boxes)
         {
-            n_boxes += box.get_num_boxes();
+            if (!are_equal(box, b))
+            {
+                types.push_back(n);
+                b = box;
+                n = 0;
+            }
+            n++;
         }
-        return n_boxes;
+        types.push_back(n);
+        types.erase(types.begin());
+        return types;
     }
 
     int get_max_length()
@@ -51,7 +88,7 @@ private:
         int result = 0;
         for (auto &&box : boxes)
         {
-            result += box.get_num_boxes() * (box.get_length(), box.get_width());
+            result += max(box.get_length(), box.get_width());
         }
         return result;
     }
@@ -61,7 +98,7 @@ private:
         int result = 0;
         for (auto &&box : boxes)
         {
-            result += box.get_num_boxes() * box.get_length() * box.get_width();
+            result += boxes.size() * box.get_length() * box.get_width();
         }
         return result;
     }
@@ -70,15 +107,18 @@ private:
     {
         boxes = b;
         paper_width = w;
-        num_boxes = compute_num_boxes();
-        max_length = get_max_length();
+        box_types = compute_box_types();
+        max_length = max(paper_width, get_max_length());
     }
 
     void print_stats()
     {
-        cout << "Paper width: " << paper_width << endl;
-        cout << "Num boxes: " << num_boxes << endl;
-        cout << "Max length: " << max_length << endl;
+        cout << "Paper width: " << paper_width << endl
+             << "Max length: " << max_length << endl
+             << "Number of boxes: " << boxes.size() << endl
+             << "Types of boxes: " << endl
+             << endl;
+        print_boxes();
     }
 
     /*********** GECODE ***********/
@@ -88,14 +128,14 @@ private:
         return coordinates[2 * i + j];
     }
 
-    IntVar get_x_coordinate(int j)
+    IntVar get_x_coordinate(int i)
     {
-        return get_coordinate(0, j);
+        return get_coordinate(i, 0);
     }
 
-    IntVar get_y_coordinate(int j)
+    IntVar get_y_coordinate(int i)
     {
-        return get_coordinate(1, j);
+        return get_coordinate(i, 1);
     }
 
     BoolVar get_relative_coordinate(BoolVarArray &relative, int i, int j)
@@ -105,7 +145,7 @@ private:
         {
             cummulative += k;
         }
-        return relative[i * num_boxes + j - cummulative];
+        return relative[i * boxes.size() + j - cummulative];
     }
 
     BoolVar get_x_relative(int i, int j)
@@ -124,18 +164,26 @@ private:
         {
             IntVar x_1 = get_x_coordinate(i);
             IntVar y_1 = get_y_coordinate(i);
+            BoolVar z_i = rotation[i];
+            int w_i = boxes[i].get_width();
+            int l_i = boxes[i].get_length();
 
             for (int j = i + 1; j < boxes.size(); j++)
             {
+                int w_j = boxes[j].get_width();
+                int l_j = boxes[j].get_length();
+
                 IntVar x_2 = get_x_coordinate(j);
                 IntVar y_2 = get_y_coordinate(j);
                 BoolVar x_rel = get_x_relative(i, j);
                 BoolVar y_rel = get_y_relative(i, j);
 
-                rel(*this, x_1 + boxes[i].get_width() <= x_2 + paper_width * (x_rel + y_rel));
-                // rel(*this, x_1 - boxes[j].get_width() >= x_2 - paper_width * (1 - x_rel + y_rel));
-                rel(*this, y_1 + boxes[i].get_length() <= y_2 - max_length * (1 + x_rel - y_rel));
-                // rel(*this, y_1 - boxes[j].get_length() >= y_2 - max_length * (2 - x_rel - y_rel));
+                BoolVar z_j = rotation[j];
+
+                rel(*this, x_1 + z_i * l_i + (1 - z_i) * w_i <= x_2 + max_length * (x_rel + y_rel));
+                rel(*this, x_1 - z_j * l_j - (1 - z_j) * w_j >= x_2 - max_length * (1 - x_rel + y_rel));
+                rel(*this, y_1 + z_i * w_i + (1 - z_i) * l_i <= y_2 + max_length * (1 + x_rel - y_rel));
+                rel(*this, y_1 - z_j * w_j - (1 - z_j) * l_j >= y_2 - max_length * (2 - x_rel - y_rel));
             }
         }
     }
@@ -143,7 +191,7 @@ private:
     int get_relative_length()
     {
         int result = 0;
-        for (int i = 1; i < num_boxes; i++)
+        for (int i = 1; i < boxes.size(); i++)
         {
             result += i;
         }
@@ -154,10 +202,10 @@ private:
     {
         int r_l = get_relative_length();
 
-        coordinates = IntVarArray(*this, 2 * num_boxes, 0, max_length);
+        coordinates = IntVarArray(*this, 2 * boxes.size(), 0, max_length);
         x_relative = BoolVarArray(*this, r_l, 0, 1);
         y_relative = BoolVarArray(*this, r_l, 0, 1);
-        rotation = BoolVarArray(*this, num_boxes, 0, 1);
+        rotation = BoolVarArray(*this, boxes.size(), 0, 1);
     }
 
     void init(vector<BoxType> b, int w)
@@ -184,20 +232,21 @@ public:
     {
         boxes = s.boxes;
         paper_width = s.paper_width;
-        num_boxes = s.num_boxes;
         max_length = s.max_length;
+        box_types = s.box_types;
 
         coordinates.update(*this, s.coordinates);
         x_relative.update(*this, s.x_relative);
         y_relative.update(*this, s.y_relative);
+        rotation.update(*this, s.rotation);
     }
 
     IntVar get_paper_length(IntVarArray coords)
     {
         IntVar greatest = coords[0];
-        for (int i = 0; i < coords.size(); i++)
+        for (int i = 0; i < boxes.size(); i++)
         {
-            IntVar tmp = coords[2 * i + 1];
+            IntVar tmp = get_y_coordinate(i);
             if (tmp.assigned() && tmp.val() > greatest.val())
             {
                 greatest = tmp;
@@ -222,9 +271,7 @@ public:
 
     void print()
     {
-        cout << num_boxes << " " << paper_width << endl;
         print_input();
-        print_stats();
         print_output();
     }
 };

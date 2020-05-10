@@ -4,11 +4,10 @@ using namespace std;
 class BoxType
 {
 private:
-    int num_boxes, width, length;
+    int width, length;
 
-    void init(int n, int l, int w)
+    void init(int l, int w)
     {
-        num_boxes = n;
         width = w;
         length = l;
     }
@@ -16,12 +15,7 @@ private:
 public:
     void print()
     {
-        cout << num_boxes << "   " << length << " " << width << endl;
-    }
-
-    int get_num_boxes()
-    {
-        return num_boxes;
+        cout << width << " " << length;
     }
 
     int get_width()
@@ -34,8 +28,13 @@ public:
         return length;
     }
 
-    BoxType(int n, int w, int l)
+    BoxType(int w, int l)
     {
-        init(n, w, l);
+        init(w, l);
+    }
+
+    BoxType()
+    {
+        init(0, 0);
     }
 };
