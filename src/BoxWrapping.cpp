@@ -11,14 +11,18 @@
 using namespace Gecode;
 using namespace std;
 
+typedef vector<BoxType> VB;
+typedef BoolVarArray BVA;
+typedef IntVarArray IVA;
+
 class BoxWrapping : public Space
 {
 
 private:
-    BoolVarArray x_relative, y_relative, rotation;
-    IntVarArray coordinates;
-    vector<BoxType> boxes;
-    vector<int> box_types;
+    BVA x_relative, y_relative, rotation;
+    IVA coordinates;
+    VB boxes;
+    vector<int> number_of_boxes;
     int paper_width, max_length;
 
     /*********** NO GECODE ***********/
@@ -37,11 +41,40 @@ private:
 
     void print_output()
     {
-        cout << get_paper_length(coordinates) << endl;
+        cout << get_paper_length() << endl;
         for (int i = 0; i < boxes.size(); i++)
         {
-            cout << get_x_coordinate(i) << " " << get_y_coordinate(i) << endl;
+            int x = get_x_coordinate(i).val();
+            int y = get_y_coordinate(i).val();
+            cout << x << " " << y << "  " << x + boxes[i].get_width()
+                 << " " << y + boxes[i].get_length() << endl;
         }
+        cout << endl;
+    }
+
+    void print_rotation()
+    {
+        cout << endl;
+        for (int i = 0; i < boxes.size(); i++)
+        {
+            if (rotation[i].assigned())
+                cout << rotation[i].val() << endl;
+        }
+        cout << endl;
+    }
+
+    void print_relative()
+    {
+        cout << endl;
+        for (int i = 0; i < x_relative.size(); i++)
+        {
+            if (x_relative[i].assigned())
+                cout << x_relative[i].val() << " ";
+            if (y_relative[i].assigned())
+                cout << y_relative[i].val();
+            cout << endl;
+        }
+        cout << endl;
     }
 
     void print_boxes()
@@ -53,7 +86,7 @@ private:
             if (!are_equal(current, box))
             {
                 current = box;
-                cout << box_types[index] << "  ";
+                cout << number_of_boxes[index] << "  ";
                 current.print();
                 cout << endl;
                 index++;
@@ -107,7 +140,7 @@ private:
     {
         boxes = b;
         paper_width = w;
-        box_types = compute_box_types();
+        number_of_boxes = compute_box_types();
         max_length = max(paper_width, get_max_length());
     }
 
@@ -138,7 +171,7 @@ private:
         return get_coordinate(i, 1);
     }
 
-    BoolVar get_relative_coordinate(BoolVarArray &relative, int i, int j)
+    BoolVar get_relative_coordinate(BVA &relative, int i, int j)
     {
         int cummulative = 0;
         for (int k = 1; k <= i + 1; k++)
@@ -160,30 +193,39 @@ private:
 
     void enforce_constraints()
     {
+        LinIntExpr p_length;
         for (int i = 0; i < boxes.size(); i++)
         {
             IntVar x_1 = get_x_coordinate(i);
             IntVar y_1 = get_y_coordinate(i);
-            BoolVar z_i = rotation[i];
-            int w_i = boxes[i].get_width();
-            int l_i = boxes[i].get_length();
+            BoolVar z_1 = rotation[i];
+            int w_1 = boxes[i].get_width();
+            int l_1 = boxes[i].get_length();
 
             for (int j = i + 1; j < boxes.size(); j++)
             {
-                int w_j = boxes[j].get_width();
-                int l_j = boxes[j].get_length();
+                int w_2 = boxes[j].get_width();
+                int l_2 = boxes[j].get_length();
+                BoolVar z_2 = rotation[j];
 
                 IntVar x_2 = get_x_coordinate(j);
                 IntVar y_2 = get_y_coordinate(j);
                 BoolVar x_rel = get_x_relative(i, j);
                 BoolVar y_rel = get_y_relative(i, j);
 
-                BoolVar z_j = rotation[j];
+                // i is at left-side of j
+                BoolExpr e1 = x_1 + (z_1 * l_1) + ((1 - z_1) * w_1) <= x_2 + max_length * (x_rel + y_rel);
+                // i is below j
+                BoolExpr e2 = x_1 - (z_2 * l_2) - ((1 - z_2) * w_2) >= x_2 - max_length * (1 - x_rel + y_rel);
+                // i is at right-side of j
+                BoolExpr e3 = y_1 + (z_1 * w_1) + ((1 - z_1) * l_1) <= y_2 + max_length * (1 + x_rel - y_rel);
+                // i is above j
+                BoolExpr e4 = y_1 - (z_2 * w_2) - ((1 - z_2) * l_2) >= y_2 - max_length * (2 - x_rel - y_rel);
 
-                rel(*this, x_1 + z_i * l_i + (1 - z_i) * w_i <= x_2 + max_length * (x_rel + y_rel));
-                rel(*this, x_1 - z_j * l_j - (1 - z_j) * w_j >= x_2 - max_length * (1 - x_rel + y_rel));
-                rel(*this, y_1 + z_i * w_i + (1 - z_i) * l_i <= y_2 + max_length * (1 + x_rel - y_rel));
-                rel(*this, y_1 - z_j * w_j - (1 - z_j) * l_j >= y_2 - max_length * (2 - x_rel - y_rel));
+                rel(*this, e1 && e2 && e3 && e4);
+                // rel(*this, e1 || e2 || e3 || e4);
+                rel(*this, (x_1 == x_2) >> (y_1 != y_2));
+                rel(*this, (y_1 == y_2) >> (x_1 != x_2));
             }
         }
     }
@@ -202,13 +244,13 @@ private:
     {
         int r_l = get_relative_length();
 
-        coordinates = IntVarArray(*this, 2 * boxes.size(), 0, max_length);
-        x_relative = BoolVarArray(*this, r_l, 0, 1);
-        y_relative = BoolVarArray(*this, r_l, 0, 1);
-        rotation = BoolVarArray(*this, boxes.size(), 0, 1);
+        coordinates = IVA(*this, 2 * boxes.size(), 0, max_length);
+        x_relative = BVA(*this, r_l, 0, 1);
+        y_relative = BVA(*this, r_l, 0, 1);
+        rotation = BVA(*this, boxes.size(), 0, 1);
     }
 
-    void init(vector<BoxType> b, int w)
+    void init(VB b, int w)
     {
         init_cpp(b, w);
         init_gecode();
@@ -218,11 +260,37 @@ public:
     /**
      * Constructor for the class.
      */
-    BoxWrapping(const vector<BoxType> &b, int &w)
+    BoxWrapping(const VB &b, int &w)
     {
         init(b, w);
         enforce_constraints();
         branch(*this, coordinates, INT_VAR_NONE(), INT_VAL_MIN());
+        branch(*this, rotation, BOOL_VAR_NONE(), BOOL_VAL_MIN());
+        branch(*this, x_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
+        branch(*this, y_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
+    }
+
+    int get_bounds(BVA rot_vars, VB boxes, int i)
+    {
+        return rot_vars[i].val() * boxes[i].get_length() + ((1 - rot_vars[i].val()) * boxes[i].get_width());
+    }
+
+    int get_largest_variable(IVA coords, BVA rot_vars, VB boxes)
+    {
+        int index = 0;
+        IntVar greatest = get_y_coordinate(index);
+        for (int i = 0; i < boxes.size(); i++)
+        {
+            IntVar tmp = get_y_coordinate(i);
+            if (tmp.assigned())
+            {
+                if ((tmp.val() + get_bounds(rot_vars, boxes, i)) >= greatest.val() + get_bounds(rot_vars, boxes, index))
+                {
+                    index = i;
+                }
+            }
+        }
+        return index;
     }
 
     /**
@@ -233,7 +301,7 @@ public:
         boxes = s.boxes;
         paper_width = s.paper_width;
         max_length = s.max_length;
-        box_types = s.box_types;
+        number_of_boxes = s.number_of_boxes;
 
         coordinates.update(*this, s.coordinates);
         x_relative.update(*this, s.x_relative);
@@ -241,24 +309,20 @@ public:
         rotation.update(*this, s.rotation);
     }
 
-    IntVar get_paper_length(IntVarArray coords)
+    int get_paper_length()
     {
-        IntVar greatest = coords[0];
-        for (int i = 0; i < boxes.size(); i++)
-        {
-            IntVar tmp = get_y_coordinate(i);
-            if (tmp.assigned() && tmp.val() > greatest.val())
-            {
-                greatest = tmp;
-            }
-        }
-        return greatest;
+        int i = get_largest_variable(coordinates, rotation, boxes);
+        return get_y_coordinate(i).val() + get_bounds(rotation, boxes, i);
     }
 
     virtual void constrain(const Space &b)
     {
         const BoxWrapping &bw = static_cast<const BoxWrapping &>(b);
-        // rel(*this, get_paper_length(coordinates) < get_paper_length(bw.coordinates));
+        int i_1 = get_largest_variable(coordinates, rotation, boxes);
+        int i_2 = get_largest_variable(bw.coordinates, bw.rotation, bw.boxes);
+        LinIntExpr e1 = coordinates[i_1] + get_bounds(rotation, boxes, i_1);
+        LinIntExpr e2 = bw.coordinates[i_2] + get_bounds(bw.rotation, bw.boxes, i_2);
+        rel(*this, e1 < e2);
     }
 
     /**
@@ -273,5 +337,7 @@ public:
     {
         print_input();
         print_output();
+        print_rotation();
+        print_relative();
     }
 };

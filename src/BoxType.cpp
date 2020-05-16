@@ -6,7 +6,7 @@ class BoxType
 private:
     int width, length;
 
-    void init(int l, int w)
+    void init(int w, int l)
     {
         width = w;
         length = l;

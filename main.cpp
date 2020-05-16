@@ -23,7 +23,7 @@ pair<vector<BoxType>, int> read_file(string filename)
     {
         for (int i = 0; i < box_number; i++)
         {
-            boxes.push_back(BoxType(l, w));
+            boxes.push_back(BoxType(w, l));
         }
     }
     return make_pair(boxes, width);
@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
         while (bw)
         {
             bw->print();
+            bw = e.next();
         }
         delete bw;
     }

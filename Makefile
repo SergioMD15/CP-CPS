@@ -9,7 +9,8 @@ LIBS = -lgecodedriver    -lgecodesearch  \
        -lgecodekernel    -lgecodesupport
 
 main: main.cpp $(PROGRAMS)
-	$(CXX) $(COMPILER) $(FLAGS) -I$(DIR)/include -c main.cpp
+#	$(CXX) $(COMPILER) $(FLAGS) -I$(DIR)/include -c main.cpp
+	$(CXX) $(COMPILER) -I$(DIR)/include -c main.cpp
 	$(CXX) -L$(DIR)/lib -o main main.o $(LIBS)
 
 clean:
