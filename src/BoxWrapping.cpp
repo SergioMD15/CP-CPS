@@ -42,14 +42,13 @@ private:
 
     void print_output()
     {
-        if (paper_length.assigned())
-            cout << paper_length.val() << endl;
+        cout << paper_length.val() << endl;
         for (int i = 0; i < boxes.size(); i++)
         {
             int x = get_x_coordinate(i).val();
             int y = get_y_coordinate(i).val();
-            cout << x << " " << y << "  " << x + boxes[i].get_width()
-                 << " " << y + boxes[i].get_length() << endl;
+            cout << x << " " << y << "  " << x + get_x_bounds_val(i) - 1
+                 << " " << y + get_y_bounds_val(i)  - 1 << endl;
         }
         cout << endl;
     }
@@ -228,7 +227,7 @@ public:
     {
         init(b, w);
         enforce_constraints();
-        branch(*this, coordinates, INT_VAR_NONE(), INT_VAL_MIN());
+        branch(*this, coordinates, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
         branch(*this, rotation, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, x_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, y_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
@@ -237,17 +236,22 @@ public:
 
     LinIntExpr get_x_bounds(int i)
     {
-        return rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width());
+        return (rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width()));
     }
 
     LinIntExpr get_y_bounds(int i)
     {
-        return rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length());
+        return (rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length()));
     }
 
-    int get_bounds(BVA rot_vars, VB boxes, int i)
+    int get_x_bounds_val(int i)
     {
-        return rot_vars[i].val() * boxes[i].get_length() + ((1 - rot_vars[i].val()) * boxes[i].get_width());
+        return (rotation[i].val() * boxes[i].get_length() + ((1 - rotation[i].val()) * boxes[i].get_width()));
+    }
+
+    int get_y_bounds_val(int i)
+    {
+        return (rotation[i].val() * boxes[i].get_width() + ((1 - rotation[i].val()) * boxes[i].get_length()));
     }
 
     /**
