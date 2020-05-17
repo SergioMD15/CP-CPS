@@ -22,6 +22,7 @@ private:
     BVA x_relative, y_relative, rotation;
     IVA coordinates;
     VB boxes;
+    IntVar paper_length;
     vector<int> number_of_boxes;
     int paper_width, max_length;
 
@@ -41,7 +42,8 @@ private:
 
     void print_output()
     {
-        cout << get_paper_length() << endl;
+        if (paper_length.assigned())
+            cout << paper_length.val() << endl;
         for (int i = 0; i < boxes.size(); i++)
         {
             int x = get_x_coordinate(i).val();
@@ -213,20 +215,17 @@ private:
                 BoolVar x_rel = get_x_relative(i, j);
                 BoolVar y_rel = get_y_relative(i, j);
 
-                // i is at left-side of j
                 BoolExpr e1 = x_1 + (z_1 * l_1) + ((1 - z_1) * w_1) <= x_2 + max_length * (x_rel + y_rel);
-                // i is below j
                 BoolExpr e2 = x_1 - (z_2 * l_2) - ((1 - z_2) * w_2) >= x_2 - max_length * (1 - x_rel + y_rel);
-                // i is at right-side of j
                 BoolExpr e3 = y_1 + (z_1 * w_1) + ((1 - z_1) * l_1) <= y_2 + max_length * (1 + x_rel - y_rel);
-                // i is above j
                 BoolExpr e4 = y_1 - (z_2 * w_2) - ((1 - z_2) * l_2) >= y_2 - max_length * (2 - x_rel - y_rel);
 
                 rel(*this, e1 && e2 && e3 && e4);
-                // rel(*this, e1 || e2 || e3 || e4);
                 rel(*this, (x_1 == x_2) >> (y_1 != y_2));
                 rel(*this, (y_1 == y_2) >> (x_1 != x_2));
             }
+            rel(*this, paper_length >= y_1 + get_length_bounds(i));
+            rel(*this, paper_width >= x_1 + get_width_bounds(i));
         }
     }
 
@@ -248,6 +247,7 @@ private:
         x_relative = BVA(*this, r_l, 0, 1);
         y_relative = BVA(*this, r_l, 0, 1);
         rotation = BVA(*this, boxes.size(), 0, 1);
+        paper_length = IntVar(*this, 0, max_length);
     }
 
     void init(VB b, int w)
@@ -268,29 +268,22 @@ public:
         branch(*this, rotation, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, x_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, y_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
+        branch(*this, paper_length, INT_VAL_MIN());
+    }
+
+    LinIntExpr get_length_bounds(int i)
+    {
+        return rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width());
+    }
+
+    LinIntExpr get_width_bounds(int i)
+    {
+        return rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length());
     }
 
     int get_bounds(BVA rot_vars, VB boxes, int i)
     {
         return rot_vars[i].val() * boxes[i].get_length() + ((1 - rot_vars[i].val()) * boxes[i].get_width());
-    }
-
-    int get_largest_variable(IVA coords, BVA rot_vars, VB boxes)
-    {
-        int index = 0;
-        IntVar greatest = get_y_coordinate(index);
-        for (int i = 0; i < boxes.size(); i++)
-        {
-            IntVar tmp = get_y_coordinate(i);
-            if (tmp.assigned())
-            {
-                if ((tmp.val() + get_bounds(rot_vars, boxes, i)) >= greatest.val() + get_bounds(rot_vars, boxes, index))
-                {
-                    index = i;
-                }
-            }
-        }
-        return index;
     }
 
     /**
@@ -307,22 +300,18 @@ public:
         x_relative.update(*this, s.x_relative);
         y_relative.update(*this, s.y_relative);
         rotation.update(*this, s.rotation);
+        paper_length.update(*this, s.paper_length);
     }
 
-    int get_paper_length()
+    IntVar get_paper_length()
     {
-        int i = get_largest_variable(coordinates, rotation, boxes);
-        return get_y_coordinate(i).val() + get_bounds(rotation, boxes, i);
+        return paper_length;
     }
 
     virtual void constrain(const Space &b)
     {
         const BoxWrapping &bw = static_cast<const BoxWrapping &>(b);
-        int i_1 = get_largest_variable(coordinates, rotation, boxes);
-        int i_2 = get_largest_variable(bw.coordinates, bw.rotation, bw.boxes);
-        LinIntExpr e1 = coordinates[i_1] + get_bounds(rotation, boxes, i_1);
-        LinIntExpr e2 = bw.coordinates[i_2] + get_bounds(bw.rotation, bw.boxes, i_2);
-        rel(*this, e1 < e2);
+        rel(*this, paper_length < bw.paper_length);
     }
 
     /**
@@ -337,7 +326,7 @@ public:
     {
         print_input();
         print_output();
-        print_rotation();
-        print_relative();
+        // print_rotation();
+        // print_relative();
     }
 };
