@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
         string filename = argv[1];
         pair<vector<BoxType>, int> boxes = read_file(filename);
         BoxWrapping *bw = new BoxWrapping(boxes.first, boxes.second);
-        DFS<BoxWrapping> e(bw);
+        BAB<BoxWrapping> e(bw);
         bw = e.next();
         while (bw)
         {

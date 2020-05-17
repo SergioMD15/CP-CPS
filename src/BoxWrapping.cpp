@@ -65,20 +65,6 @@ private:
         cout << endl;
     }
 
-    void print_relative()
-    {
-        cout << endl;
-        for (int i = 0; i < x_relative.size(); i++)
-        {
-            if (x_relative[i].assigned())
-                cout << x_relative[i].val() << " ";
-            if (y_relative[i].assigned())
-                cout << y_relative[i].val();
-            cout << endl;
-        }
-        cout << endl;
-    }
-
     void print_boxes()
     {
         BoxType current;
@@ -128,32 +114,12 @@ private:
         return result;
     }
 
-    int get_total_area_boxes()
-    {
-        int result = 0;
-        for (auto &&box : boxes)
-        {
-            result += boxes.size() * box.get_length() * box.get_width();
-        }
-        return result;
-    }
-
     void init_cpp(vector<BoxType> &b, int &w)
     {
         boxes = b;
         paper_width = w;
         number_of_boxes = compute_box_types();
         max_length = max(paper_width, get_max_length());
-    }
-
-    void print_stats()
-    {
-        cout << "Paper width: " << paper_width << endl
-             << "Max length: " << max_length << endl
-             << "Number of boxes: " << boxes.size() << endl
-             << "Types of boxes: " << endl
-             << endl;
-        print_boxes();
     }
 
     /*********** GECODE ***********/
@@ -221,11 +187,9 @@ private:
                 BoolExpr e4 = y_1 - (z_2 * w_2) - ((1 - z_2) * l_2) >= y_2 - max_length * (2 - x_rel - y_rel);
 
                 rel(*this, e1 && e2 && e3 && e4);
-                rel(*this, (x_1 == x_2) >> (y_1 != y_2));
-                rel(*this, (y_1 == y_2) >> (x_1 != x_2));
             }
-            rel(*this, paper_length >= y_1 + get_length_bounds(i));
-            rel(*this, paper_width >= x_1 + get_width_bounds(i));
+            rel(*this, paper_length >= y_1 + get_y_bounds(i));
+            rel(*this, paper_width >= x_1 + get_x_bounds(i));
         }
     }
 
@@ -271,12 +235,12 @@ public:
         branch(*this, paper_length, INT_VAL_MIN());
     }
 
-    LinIntExpr get_length_bounds(int i)
+    LinIntExpr get_x_bounds(int i)
     {
         return rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width());
     }
 
-    LinIntExpr get_width_bounds(int i)
+    LinIntExpr get_y_bounds(int i)
     {
         return rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length());
     }
@@ -327,6 +291,5 @@ public:
         print_input();
         print_output();
         // print_rotation();
-        // print_relative();
     }
 };
