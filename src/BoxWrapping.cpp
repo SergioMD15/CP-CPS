@@ -48,7 +48,7 @@ private:
             int x = get_x_coordinate(i).val();
             int y = get_y_coordinate(i).val();
             cout << x << " " << y << "  " << x + get_x_bounds_val(i) - 1
-                 << " " << y + get_y_bounds_val(i)  - 1 << endl;
+                 << " " << y + get_y_bounds_val(i) - 1 << endl;
         }
         cout << endl;
     }
@@ -186,6 +186,8 @@ private:
                 BoolExpr e4 = y_1 - (z_2 * w_2) - ((1 - z_2) * l_2) >= y_2 - max_length * (2 - x_rel - y_rel);
 
                 rel(*this, e1 && e2 && e3 && e4);
+                rel(*this, (x_1 == x_2) >> (y_1 != y_2));
+                rel(*this, (y_1 == y_2) >> (x_1 != x_2));
             }
             rel(*this, paper_length >= y_1 + get_y_bounds(i));
             rel(*this, paper_width >= x_1 + get_x_bounds(i));
@@ -236,22 +238,22 @@ public:
 
     LinIntExpr get_x_bounds(int i)
     {
-        return (rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width()));
+        return rotation[i] * boxes[i].get_length() + ((1 - rotation[i]) * boxes[i].get_width());
     }
 
     LinIntExpr get_y_bounds(int i)
     {
-        return (rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length()));
+        return rotation[i] * boxes[i].get_width() + ((1 - rotation[i]) * boxes[i].get_length());
     }
 
     int get_x_bounds_val(int i)
     {
-        return (rotation[i].val() * boxes[i].get_length() + ((1 - rotation[i].val()) * boxes[i].get_width()));
+        return rotation[i].val() * boxes[i].get_length() + ((1 - rotation[i].val()) * boxes[i].get_width());
     }
 
     int get_y_bounds_val(int i)
     {
-        return (rotation[i].val() * boxes[i].get_width() + ((1 - rotation[i].val()) * boxes[i].get_length()));
+        return rotation[i].val() * boxes[i].get_width() + ((1 - rotation[i].val()) * boxes[i].get_length());
     }
 
     /**

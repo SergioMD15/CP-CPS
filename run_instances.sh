@@ -1,10 +1,12 @@
 #!/bin/bash
 
-make
+make clean
 
-for f in small_instances/*
+make main
+
+for f in instances/*
 do
     printf "\n\n$f\n\n"
-    timeout 1m ./main $f
+    timeout 2m ./main $f > output/$f
     printf "\n\n"
 done
