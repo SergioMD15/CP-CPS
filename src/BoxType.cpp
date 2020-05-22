@@ -18,6 +18,11 @@ public:
         cout << width << " " << length;
     }
 
+    void print_debug()
+    {
+        cerr << width << " " << length;
+    }
+
     int get_width()
     {
         return width;

@@ -20,7 +20,7 @@ class BoxWrapping : public Space
 
 private:
     BVA x_relative, y_relative, rotation;
-    IVA coordinates;
+    IVA x_coordinates, y_coordinates;
     VB boxes;
     IntVar paper_length;
     vector<int> number_of_boxes;
@@ -34,34 +34,54 @@ private:
                 a.get_width() == b.get_width());
     }
 
-    void print_input()
+    void print_input(bool debug)
     {
-        cout << paper_width << " " << boxes.size() << endl;
-        print_boxes();
+        if (debug)
+        {
+            cerr << paper_width << " " << boxes.size() << endl;
+            print_debug_boxes();
+        }
+        else
+        {
+            cout << paper_width << " " << boxes.size() << endl;
+            print_boxes();
+        }
     }
 
-    void print_output()
+    void print_output(bool debug)
     {
-        cout << paper_length.val() << endl;
+        if (debug)
+        {
+            cerr << paper_length.val() << endl;
+        }
+        else
+        {
+            cout << paper_length.val() << endl;
+        }
         for (int i = 0; i < boxes.size(); i++)
         {
-            int x = get_x_coordinate(i).val();
-            int y = get_y_coordinate(i).val();
-            cout << x << " " << y << "  " << x + get_x_bounds_val(i) - 1
-                 << " " << y + get_y_bounds_val(i) - 1 << endl;
+            int x = x_coordinates[i].val();
+            int y = y_coordinates[i].val();
+            if (debug)
+            {
+                cerr << x << " " << y << "  " << x + get_x_bounds_val(i) - 1
+                     << " " << y + get_y_bounds_val(i) - 1 << endl;
+            }
+            else
+            {
+                cout << x << " " << y << "  " << x + get_x_bounds_val(i) - 1
+                     << " " << y + get_y_bounds_val(i) - 1 << endl;
+            }
         }
-        cout << endl;
-    }
+        if (debug)
+        {
+            cerr << endl;
+        }
+        else
+        {
 
-    void print_rotation()
-    {
-        cout << endl;
-        for (int i = 0; i < boxes.size(); i++)
-        {
-            if (rotation[i].assigned())
-                cout << rotation[i].val() << endl;
+            cout << endl;
         }
-        cout << endl;
     }
 
     void print_boxes()
@@ -76,6 +96,24 @@ private:
                 cout << number_of_boxes[index] << "  ";
                 current.print();
                 cout << endl;
+                index++;
+            }
+            continue;
+        }
+    }
+
+    void print_debug_boxes()
+    {
+        BoxType current;
+        int index = 0;
+        for (BoxType box : boxes)
+        {
+            if (!are_equal(current, box))
+            {
+                current = box;
+                cerr << number_of_boxes[index] << "  ";
+                current.print_debug();
+                cerr << endl;
                 index++;
             }
             continue;
@@ -123,21 +161,6 @@ private:
 
     /*********** GECODE ***********/
 
-    IntVar get_coordinate(int i, int j)
-    {
-        return coordinates[2 * i + j];
-    }
-
-    IntVar get_x_coordinate(int i)
-    {
-        return get_coordinate(i, 0);
-    }
-
-    IntVar get_y_coordinate(int i)
-    {
-        return get_coordinate(i, 1);
-    }
-
     BoolVar get_relative_coordinate(BVA &relative, int i, int j)
     {
         int cummulative = 0;
@@ -160,11 +183,10 @@ private:
 
     void enforce_constraints()
     {
-        LinIntExpr p_length;
         for (int i = 0; i < boxes.size(); i++)
         {
-            IntVar x_1 = get_x_coordinate(i);
-            IntVar y_1 = get_y_coordinate(i);
+            IntVar x_1 = x_coordinates[i];
+            IntVar y_1 = y_coordinates[i];
             BoolVar z_1 = rotation[i];
             int w_1 = boxes[i].get_width();
             int l_1 = boxes[i].get_length();
@@ -175,8 +197,8 @@ private:
                 int l_2 = boxes[j].get_length();
                 BoolVar z_2 = rotation[j];
 
-                IntVar x_2 = get_x_coordinate(j);
-                IntVar y_2 = get_y_coordinate(j);
+                IntVar x_2 = x_coordinates[j];
+                IntVar y_2 = y_coordinates[j];
                 BoolVar x_rel = get_x_relative(i, j);
                 BoolVar y_rel = get_y_relative(i, j);
 
@@ -208,7 +230,8 @@ private:
     {
         int r_l = get_relative_length();
 
-        coordinates = IVA(*this, 2 * boxes.size(), 0, max_length);
+        x_coordinates = IVA(*this, boxes.size(), 0, paper_width);
+        y_coordinates = IVA(*this, boxes.size(), 0, max_length);
         x_relative = BVA(*this, r_l, 0, 1);
         y_relative = BVA(*this, r_l, 0, 1);
         rotation = BVA(*this, boxes.size(), 0, 1);
@@ -229,7 +252,8 @@ public:
     {
         init(b, w);
         enforce_constraints();
-        branch(*this, coordinates, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+        branch(*this, x_coordinates, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+        branch(*this, y_coordinates, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
         branch(*this, rotation, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, x_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
         branch(*this, y_relative, BOOL_VAR_NONE(), BOOL_VAL_MIN());
@@ -266,7 +290,8 @@ public:
         max_length = s.max_length;
         number_of_boxes = s.number_of_boxes;
 
-        coordinates.update(*this, s.coordinates);
+        x_coordinates.update(*this, s.x_coordinates);
+        y_coordinates.update(*this, s.y_coordinates);
         x_relative.update(*this, s.x_relative);
         y_relative.update(*this, s.y_relative);
         rotation.update(*this, s.rotation);
@@ -292,10 +317,15 @@ public:
         return new BoxWrapping(*this);
     }
 
+    void print_debug()
+    {
+        print_input(true);
+        print_output(true);
+    }
+
     void print()
     {
-        print_input();
-        print_output();
-        // print_rotation();
+        print_input(false);
+        print_output(false);
     }
 };
